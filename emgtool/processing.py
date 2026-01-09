@@ -78,18 +78,27 @@ def preprocess(emg, fs=None):
 
     filtered = demeaned.copy()
     if fs is not None and np.isfinite(fs) and fs > 0:   # If we have a sample rate and the sample rate is finite and positive:
-        nyquist = 0.5 * fs  # By definition, Nyquist frequency is half of the sample rate.
-        if nyquist > 20:    # If nyquist is greater than 20 Hz, apply high pass filter to remove the low frequencies.
-            b_hp, a_hp = signal.butter(4, 20.0 / nyquist, btype="highpass")     # Calculates the numerator and denominator coefficients for a high pass filter with filter order 4 and cutoff frequency of 20 Hz.
-            filtered = _safe_filter(demeaned, b_hp, a_hp)   # Filters the data using the high pass filter.
+        nyquist = 0.5 * fs  # Nyquist frequency is half of the sample rate.
+
+        low_hz = 20.0
+        high_hz = 400.0
+        
+        # Calculates the numerator and denominator coefficients for a band pass filter (20 - 400 Hz) with filter order 4.
+        if nyquist > high_hz:
+            wn = [low_hz / nyquist, high_hz / nyquist]
+            b_bp, a_bp = signal.butter(4, wn, btype="bandpass")
+            filtered = _safe_filter(demeaned, b_bp, a_bp)
+        elif nyquist > low_hz:
+            b_hp, a_hp = signal.butter(4, low_hz / nyquist, btype="highpass")
+            filtered = _safe_filter(demeaned, b_hp, a_hp)
 
     rectified = np.abs(filtered)
 
     envelope = rectified.copy()
     if fs is not None and np.isfinite(fs) and fs > 0:
         nyquist = 0.5 * fs
-        if nyquist > 5:  # If nyquist is greater than 5 Hz, apply low pass filter to remove the high frequencies.
-            b_lp, a_lp = signal.butter(4, 5.0 / nyquist, btype="lowpass")
+        if nyquist > 5:  # If nyquist is greater than 10 Hz, apply low pass filter to smoothen the signal.
+            b_lp, a_lp = signal.butter(4, 10.0 / nyquist, btype="lowpass")
             envelope = _safe_filter(rectified, b_lp, a_lp)
 
     return {
